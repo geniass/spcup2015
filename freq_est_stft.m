@@ -1,23 +1,8 @@
-clear all
+function [ F ] = freq_est_stft( y, Fs )
+%FREQ_EST_STFT estimates the single instantaneous frequency in the vector y
+% using the short time Fourier transform method (spectrogram)
+% returns the vector of instantaneous frequencies
 
-dir = '/home/ari/development/spcup/Grid_B/Power_recordings/';
-file = 'Train_Grid_B_P1.wav';
-[y,Fs] = wavread(strcat(dir,file));
-%  y = y(1:1000*Fs);
-
-%  [y,n,window_freqs,sample_freqs]=synth_enf_signal(Fs, n_windows, window_size);
-% n = 0:1/Fs:4;
-% y = cos(2*pi*50*n.*(n<2) + 2*pi*55.1*n.*(n>=2));
-% plot(n,y)
-
-% decimate
-Fs_old = Fs;
-Fs = 300;
-y = resample(y, Fs, Fs_old);
-
-% bandpass filter
-b = fir1(50,[40,70].*2/Fs);
-y = filtfilt(b,1,y);
 
 window_size = 1000;
 M = floor(window_size / 3);
@@ -33,7 +18,7 @@ N = length(y)
 F = zeros(1,length(1:(N-D*L)));
 
 % window and zero-padding for better FFT resolution
-P = 2^16;       % FFT size (power of 2)
+P = 2^17;       % FFT size (power of 2)
 window = blackman(D*L);
 % padding = zeros(8192 - D*L,1);
 m = window_mat(y, L, D*L)';
@@ -44,6 +29,7 @@ clear window
 clear padding
 
 fprintf('Starting loop...\n')
+fprintf('No. windows: %i\n', size(m,2))
 tic
 % matlabpool(3)
 
@@ -59,7 +45,6 @@ parfor n = 1:size(m,2)
     P1 = P2(1:P/2+1);
     P1(2:end-1) = 2*P1(2:end-1);
     
-    f = Fs*(0:(P/2))/P;
     % https://ccrma.stanford.edu/~jos/parshl/Peak_Detection_Steps_3.html#sec:peakdet
     [~,i] = max(P1);                    % find max power at i
     b = 20*log10(P1(i));
@@ -68,7 +53,6 @@ parfor n = 1:size(m,2)
     
     p = 0.5*(a-c)/(a-2*b+c);   
     bin = round(i + p);
-    f_max = Fs*bin/P;
     F(n) = Fs*i/P;
     
 %     if mod(n,100)==0
@@ -82,17 +66,5 @@ end
 toc
 
 
+end
 
-figure
-t = 0:L/Fs:(length(F)-1)/Fs;
- plot(t,F)
-%plot(t,sample_freqs,t,F)
-
-% runs out of memory
-% figure
-% level = 7;
-% wpt = wpdec(y,level,'sym8');
-% [Spec,Time,Freq] = wpspectrum(wpt,Fs,'plot');
-
-
-sprintf('Mean: %f\nVar: %f\n',mean(F),var(F));
